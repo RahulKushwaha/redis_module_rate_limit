@@ -6,7 +6,8 @@
 
 namespace rk::projects::redis_rate_limiter {
 
-RateLimiter::RateLimiter() : tokenBucket_{std::make_shared<folly::TokenBucket>(1, 1)} {};
+RateLimiter::RateLimiter()
+    : tokenBucket_{std::make_shared<folly::TokenBucket>(1, 1)} {};
 
 bool RateLimiter::consume(double toConsume) {
   auto result = tokenBucket_->consume(toConsume);
@@ -17,4 +18,4 @@ double RateLimiter::balance() {
   return tokenBucket_->balance();
 }
 
-}
+}  // namespace rk::projects::redis_rate_limiter
