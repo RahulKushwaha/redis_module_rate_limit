@@ -8,11 +8,13 @@ namespace rk::projects::redis_rate_limiter {
 
 class RateLimiter {
  public:
-  explicit RateLimiter();
+  explicit RateLimiter(double genRate, double burstSize);
 
   bool consume(double toConsume);
 
   double balance();
+
+  void reset(double genRate, double burstSize);
 
  private:
   std::shared_ptr<folly::TokenBucket> tokenBucket_;
@@ -41,6 +43,11 @@ bool consume(RateLimiterHandle handle, double toConsume) {
 
 double balance(RateLimiterHandle handle) {
   return ((rk::projects::redis_rate_limiter::RateLimiter*)handle)->balance();
+}
+
+void reset(RateLimiterHandle handle, double genRate, double burstSize) {
+  ((rk::projects::redis_rate_limiter::RateLimiter*)handle)
+      ->reset(genRate, burstSize);
 }
 
 #ifdef __cplusplus

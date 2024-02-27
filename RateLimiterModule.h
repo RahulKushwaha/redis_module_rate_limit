@@ -6,7 +6,6 @@
 #include "RateLimiter.h"
 #include "folly/Optional.h"
 
-#include <iostream>
 #include <strings.h>
 
 static RateLimiterHandle rate_limiter_handle;
@@ -14,6 +13,8 @@ static RateLimiterHandle rate_limiter_handle;
 static RedisModuleString* log_key_name;
 
 static const char ratelimiter_block_command_name[] = "ratelimiter.block";
+static const char ratelimiter_reset_command_name[] = "ratelimiter.reset";
+
 static int in_log_command = 0;
 
 unsigned long long unfiltered_clientid = 0;
@@ -21,8 +22,21 @@ unsigned long long unfiltered_clientid = 0;
 static RedisModuleCommandFilter* filter;
 static RedisModuleString* retained;
 
-int CommandFilter_PingCommand(RedisModuleCtx* ctx, RedisModuleString** argv,
-                              int argc) {
+int CommandFilter_RateLimiterResetCommand(RedisModuleCtx* ctx,
+                                          RedisModuleString** argv, int argc) {
+  double genRate{0};
+  RedisModule_StringToDouble(argv[1], &genRate);
+
+  double burstRate{0};
+  RedisModule_StringToDouble(argv[2], &burstRate);
+
+  reset(rate_limiter_handle, genRate, burstRate);
+
+  return REDISMODULE_OK;
+}
+
+int CommandFilter_RateLimiterBlockCommand(RedisModuleCtx* ctx,
+                                          RedisModuleString** argv, int argc) {
   RedisModule_Log(ctx, "notice", "exceeded quota");
   RedisModule_ReplyWithError(ctx, "TOO_MANY_REQUESTS");
 
@@ -64,8 +78,8 @@ extern "C" int RedisModule_OnLoad(RedisModuleCtx* ctx, RedisModuleString** argv,
   retained = nullptr;
 
   if (RedisModule_CreateCommand(ctx, ratelimiter_block_command_name,
-                                CommandFilter_PingCommand, "deny-oom", 1, 1,
-                                1) == REDISMODULE_ERR)
+                                CommandFilter_RateLimiterBlockCommand,
+                                "deny-oom", 1, 1, 1) == REDISMODULE_ERR)
     return REDISMODULE_ERR;
 
   if ((filter = RedisModule_RegisterCommandFilter(
