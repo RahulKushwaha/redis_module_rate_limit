@@ -1,4 +1,4 @@
-#include "RateLimiterModule.h"
+#include "RateLimiterModule.cc"
 
 #include <folly/Optional.h>
 

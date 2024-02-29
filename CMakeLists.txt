@@ -17,13 +17,13 @@ include_directories(${folly_SOURCE_DIR})
 find_package(Glog REQUIRED)  # GlogConfig.cmake NOT available; use FindGlog.cmake
 include_directories(${GLOG_INCLUDE_DIRS})
 
-add_library(redis_module SHARED RateLimiterModule.h
+add_library(redis_module SHARED RateLimiterModule.cc
         RateLimiter.h
-        RateLimiter.cc)
+        RateLimiter.cc
+        RateLimiterModule.cc)
 target_link_libraries(redis_module folly)
 
 add_executable(redis_rate_limiter_module main.cpp
-        RateLimiterModule.h
         RateLimiter.h
         RateLimiter.cc)
 target_link_libraries(redis_rate_limiter_module folly)

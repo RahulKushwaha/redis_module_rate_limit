@@ -4,11 +4,26 @@
 
 #include "/Users/rahulkushwaha/projects/redis/src/redismodule.h"
 #include "RateLimiter.h"
-#include "folly/Optional.h"
+#include "glog/logging.h"
 
+#include <atomic>
 #include <strings.h>
 
 static RateLimiterHandle rate_limiter_handle;
+
+struct RateLimiterConfig {
+  bool enabled;
+  bool dryRunEnabled;
+  double genRate;
+  double burst;
+};
+
+RateLimiterConfig current_config{
+    .enabled = true,
+    .dryRunEnabled = false,
+    .genRate = 10,
+    .burst = 100,
+};
 
 static RedisModuleString* log_key_name;
 
@@ -24,6 +39,14 @@ static RedisModuleString* retained;
 
 int CommandFilter_RateLimiterResetCommand(RedisModuleCtx* ctx,
                                           RedisModuleString** argv, int argc) {
+  LOG(INFO) << "argc: " << argc;
+  if (argc != 3) {
+    std::string err{"2 arguments [genRate & burst] not provided"};
+    LOG(ERROR) << err;
+    RedisModule_ReplyWithError(ctx, err.c_str());
+    return REDISMODULE_OK;
+  }
+
   double genRate{0};
   RedisModule_StringToDouble(argv[1], &genRate);
 
@@ -31,6 +54,9 @@ int CommandFilter_RateLimiterResetCommand(RedisModuleCtx* ctx,
   RedisModule_StringToDouble(argv[2], &burstRate);
 
   reset(rate_limiter_handle, genRate, burstRate);
+
+  const char* ok = "OK";
+  RedisModule_ReplyWithString(ctx, RedisModule_CreateString(nullptr, ok, 2));
 
   return REDISMODULE_OK;
 }
@@ -51,7 +77,12 @@ void CommandFilter_CommandFilter(RedisModuleCommandFilterCtx* filterCtx) {
   if (in_log_command)
     return; /* don't process our own RM_Call() from CommandFilter_LogCommand() */
 
-  if (!consume(rate_limiter_handle, 1)) {
+  if (current_config.enabled && !consume(rate_limiter_handle, 1)) {
+    if (current_config.dryRunEnabled) {
+      LOG_EVERY_N(INFO, 5) << "command rejected";
+      return;
+    }
+
     RedisModule_CommandFilterArgInsert(
         filterCtx, 0,
         RedisModule_CreateString(nullptr, ratelimiter_block_command_name,
@@ -59,8 +90,9 @@ void CommandFilter_CommandFilter(RedisModuleCommandFilterCtx* filterCtx) {
   }
 }
 
-extern "C" int RedisModule_OnLoad(RedisModuleCtx* ctx, RedisModuleString** argv,
-                                  int argc) {
+extern "C" {
+int RedisModule_OnLoad(RedisModuleCtx* ctx, RedisModuleString** argv,
+                       int argc) {
   if (RedisModule_Init(ctx, "commandfilter", 1, REDISMODULE_APIVER_1) ==
       REDISMODULE_ERR)
     return REDISMODULE_ERR;
@@ -79,6 +111,11 @@ extern "C" int RedisModule_OnLoad(RedisModuleCtx* ctx, RedisModuleString** argv,
 
   if (RedisModule_CreateCommand(ctx, ratelimiter_block_command_name,
                                 CommandFilter_RateLimiterBlockCommand,
+                                "deny-oom", 1, 1, 1) == REDISMODULE_ERR)
+    return REDISMODULE_ERR;
+
+  if (RedisModule_CreateCommand(ctx, ratelimiter_reset_command_name,
+                                CommandFilter_RateLimiterResetCommand,
                                 "deny-oom", 1, 1, 1) == REDISMODULE_ERR)
     return REDISMODULE_ERR;
 
@@ -109,4 +146,5 @@ extern "C" int RedisModule_OnUnload(RedisModuleCtx* ctx) {
   freeRateLimiter(rate_limiter_handle);
 
   return REDISMODULE_OK;
+}
 }

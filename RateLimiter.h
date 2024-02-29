@@ -2,7 +2,7 @@
 // Created by Rahul  Kushwaha on 2/27/24.
 //
 #pragma once
-#include <folly/TokenBucket.h>
+#include "folly/TokenBucket.h"
 
 namespace rk::projects::redis_rate_limiter {
 
@@ -27,28 +27,11 @@ extern "C" {
 #endif
 typedef void* RateLimiterHandle;
 
-RateLimiterHandle createRateLimiter() {
-  return (rk::projects::redis_rate_limiter::RateLimiter*)new rk::projects::
-      redis_rate_limiter::RateLimiter();
-}
-
-void freeRateLimiter(RateLimiterHandle handle) {
-  delete (rk::projects::redis_rate_limiter::RateLimiter*)handle;
-}
-
-bool consume(RateLimiterHandle handle, double toConsume) {
-  return ((rk::projects::redis_rate_limiter::RateLimiter*)handle)
-      ->consume(toConsume);
-}
-
-double balance(RateLimiterHandle handle) {
-  return ((rk::projects::redis_rate_limiter::RateLimiter*)handle)->balance();
-}
-
-void reset(RateLimiterHandle handle, double genRate, double burstSize) {
-  ((rk::projects::redis_rate_limiter::RateLimiter*)handle)
-      ->reset(genRate, burstSize);
-}
+RateLimiterHandle createRateLimiter();
+void freeRateLimiter(RateLimiterHandle handle);
+bool consume(RateLimiterHandle handle, double toConsume);
+double balance(RateLimiterHandle handle);
+void reset(RateLimiterHandle handle, double genRate, double burstSize);
 
 #ifdef __cplusplus
 }
